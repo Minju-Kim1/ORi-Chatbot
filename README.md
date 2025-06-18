@@ -53,3 +53,4 @@ streamlit run Chatbot.py
 - `service_key.json` 파일은 절대 공개 저장소에 업로드하지 마세요
 - 구글 시트의 데이터 구조가 변경되면 코드 수정이 필요할 수 있습니다
 - 현재는 'Sheet1' 시트를 사용하도록 설정되어 있습니다 
+
