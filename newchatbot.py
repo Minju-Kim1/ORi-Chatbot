@@ -110,16 +110,6 @@ def login():
         else:
             st.error("아이디 또는 비밀번호가 올바르지 않습니다.")
 
-# --- 앱 시작 시 쿼리 파라미터 처리 (아이콘 클릭 시 새 채팅) ---
-# ORi 아이콘 클릭 시 화면 전환 기능을 제거했으므로, 이 쿼리 파라미터 처리 로직은 더 이상 필요 없습니다.
-# 기존 코드를 주석 처리하거나 삭제합니다.
-# if "action" in st.query_params and st.query_params["action"] == "new_chat":
-#     del st.query_params["action"]
-#     if st.session_state["login"]:
-#         start_new_chat()
-#     else:
-#         st.rerun()
-
 
 if not st.session_state["login"]:
     login()
