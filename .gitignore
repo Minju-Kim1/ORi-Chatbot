@@ -1,0 +1,20 @@
+# Google Service Account Key
+service_key.json
+
+# Streamlit secrets file (optional, if you have other secrets not handled by Streamlit Cloud's secrets)
+.streamlit/secrets.toml
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Virtual environment
+myenv/
+.venv/
+venv/
+
+# Logs
+*.log
+
+# IDE files (e.g., VS Code)
+.vscode/
