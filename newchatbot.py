@@ -162,11 +162,19 @@ if st.session_state.show_guidelines and len(st.session_state.messages) == 1:
 @st.cache_data
 def load_google_sheet_data():
     try:
-        if not os.path.exists('service_key.json'):
-            st.warning("⚠️ service_key.json 파일이 없습니다. 구글 시트 데이터 없이 실행됩니다.")
+        # 1. secrets에 GOOGLE_SERVICE_ACCOUNT_KEY가 있는지 확인
+        if "GOOGLE_SERVICE_ACCOUNT_KEY" not in st.secrets:
+            st.error("❌ GOOGLE_SERVICE_ACCOUNT_KEY가 Streamlit Secrets에 설정되지 않았습니다.")
+            st.info("📝 Streamlit Cloud 앱 설정에서 Advanced settings > Secrets에 Google 서비스 계정 키(JSON 내용)를 추가해주세요.")
             return None
-        credentials = service_account.Credentials.from_service_account_file(
-            'service_key.json',
+
+        # 2. secrets에서 JSON 문자열을 가져와 파싱
+        # service_key.json의 내용을 문자열로 직접 사용
+        json_key_info = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT_KEY"])
+
+        # 3. service_account.Credentials.from_service_account_info 사용
+        credentials = service_account.Credentials.from_service_account_info(
+            json_key_info,
             scopes=['https://www.googleapis.com/auth/spreadsheets',
                     'https://www.googleapis.com/auth/drive']
         )
@@ -203,13 +211,14 @@ def load_google_sheet_data():
             'image_urls': expanded_image_urls
         }
 
-    except FileNotFoundError:
-        st.error("❌ service_key.json 파일을 찾을 수 없습니다.")
-        st.info("📝 README.md 파일을 참고하여 구글 서비스 계정 키를 설정해주세요.")
+    except json.JSONDecodeError:
+        st.error("❌ Streamlit Secrets의 GOOGLE_SERVICE_ACCOUNT_KEY 내용이 올바른 JSON 형식이 아닙니다.")
+        st.info("📝 service_key.json 파일의 전체 내용을 큰따옴표 안에 정확히 복사했는지 확인해주세요.")
         return None
     except Exception as e:
-        st.error(f"❌ 구글 시트 연결 오류: {str(e)}")
-        st.info("📝 구글 시트가 서비스 계정과 공유되어 있는지 확인해주세요.")
+        st.error(f"❌ 구글 시트 연결 또는 인증 오류: {type(e).__name__} - {str(e)}")
+        st.info("📝 1. 구글 서비스 계정 이메일 주소가 구글 시트와 공유되어 있는지 확인해주세요.\n"
+                "📝 2. Streamlit Secrets에 입력된 GOOGLE_SERVICE_ACCOUNT_KEY의 내용이 정확한지 확인해주세요.")
         return None
 
 sheet_data_loaded = load_google_sheet_data()
