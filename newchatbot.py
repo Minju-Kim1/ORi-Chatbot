@@ -459,7 +459,7 @@ if prompt := st.chat_input("어떤 수술 준비를 도와드릴까요?"):
             response_content = (
                 "죄송합니다. 해당 정보를 찾을 수 없습니다.\n"
                 "다른 질문이 있으신가요? \n"
-                "예시) 37번방 tuc 수술 준비 방법 알려주세요."
+                "예시) tuc 수술 준비"
             )
             with st.chat_message("assistant", avatar="ori_icon.png"):
                 st.markdown(response_content)
