@@ -172,34 +172,60 @@ def load_google_sheet_data():
         sheet_url = "https://docs.google.com/spreadsheets/d/11DUuktRmn1UlchUbeytQAsxC9RaHmL-PW-6480vXYSo/edit?gid=0#gid=0"
         sheet_id = sheet_url.split('/d/')[1].split('/')[0]
         sh = gc.open_by_key(sheet_id)
-        worksheet = sh.worksheet('Sheet1')
-        data = worksheet.get_all_values()
-        if len(data) < 2:
-            st.warning("구글 시트에 데이터가 없습니다. 시트에 '질문', '답변', 'Image URL' 컬럼을 포함해 데이터를 입력해 주세요.")
+        
+        # --- 기존 Sheet1 로드 ---
+        worksheet_main = sh.worksheet('Sheet1') # 기존 'Sheet1'
+        data_main = worksheet_main.get_all_values()
+        df_main = pd.DataFrame(data_main[1:], columns=data_main[0])
+        
+        # --- 새로운 Data_Input 시트 로드 ---
+        df_input_full = pd.DataFrame() # Data_Input 전체 데이터를 담을 변수 초기화
+        try:
+            worksheet_input = sh.worksheet('Data_Input') # 새롭게 추가한 'Data_Input' 시트
+            data_input = worksheet_input.get_all_values()
+            if data_input: # 데이터가 있을 경우에만 DataFrame 생성
+                df_input_full = pd.DataFrame(data_input[1:], columns=data_input[0])
+            else:
+                st.info("ℹ️ 'Data_Input' 시트에 데이터가 없습니다. 새로운 정보를 입력해주세요.")
+            
+            # --- 여기에서 '질문', '답변', 'Image URL' 컬럼을 합치는 로직은 그대로 유지 ---
+            cols_to_use = ['질문', '답변', 'Image URL']
+            df_main_filtered = df_main[cols_to_use] if all(col in df_main.columns for col in cols_to_use) else pd.DataFrame(columns=cols_to_use)
+            df_input_filtered = df_input_full[cols_to_use] if all(col in df_input_full.columns for col in cols_to_use) else pd.DataFrame(columns=cols_to_use)
+
+            combined_df = pd.concat([df_main_filtered, df_input_filtered], ignore_index=True)
+
+        except gspread.exceptions.WorksheetNotFound:
+            st.warning("⚠️ 'Data_Input' 시트를 찾을 수 없습니다. 새로운 정보를 저장하려면 시트를 생성해주세요.")
+            combined_df = df_main # Data_Input이 없으면 기존 Sheet1만 사용
+
+        if len(combined_df) < 1 or combined_df.empty:
+            st.warning("구글 시트에 유효한 데이터가 없습니다. 시트에 '질문', '답변', 'Image URL' 컬럼을 포함해 데이터를 입력해 주세요.")
             return None
-        df = pd.DataFrame(data[1:], columns=data[0])
 
-        expanded_questions = []
-        expanded_answers = []
-        expanded_image_urls = []
+        questions = []
+        answers = []
+        image_urls = []
 
-        for index, row in df.iterrows():
-            question_cell = str(row['질문'])
-            answer_cell = row['답변']
-            image_url_cell = row['Image URL'] if 'Image URL' in df.columns else None
+        for index, row in combined_df.iterrows():
+            question_cell = str(row.get('질문', ''))
+            answer_cell = row.get('답변', '')
+            image_url_cell = row.get('Image URL', '')
 
             for q in question_cell.split(','):
                 q_stripped = q.strip()
                 if q_stripped:
-                    expanded_questions.append(q_stripped)
-                    expanded_answers.append(answer_cell)
-                    expanded_image_urls.append(image_url_cell)
+                    questions.append(q_stripped)
+                    answers.append(answer_cell)
+                    image_urls.append(image_url_cell)
         
         return {
-            'questions': expanded_questions,
-            'answers': expanded_answers,
-            'image_urls': expanded_image_urls
+            'questions': questions,
+            'answers': answers,
+            'image_urls': image_urls,
+            'full_data_input': df_input_full # 'Data_Input' 시트의 전체 데이터프레임을 반환
         }
+
 
     except json.JSONDecodeError:
         st.error("❌ Streamlit Secrets의 GOOGLE_SERVICE_ACCOUNT_KEY 내용이 올바른 JSON 형식이 아닙니다.")
@@ -305,6 +331,84 @@ with st.sidebar:
     # "새 채팅" 버튼은 그대로 유지하여 사이드바를 통해 새 채팅 시작
     if st.button("새 채팅", key="new_chat_button"):
         start_new_chat()
+
+    st.markdown("---")
+
+    # 여기에 '정보 입력' 섹션을 추가합니다.
+    st.header("새 정보 입력")
+    st.markdown("##### 📝 새로운 수술 정보를 추가하세요")
+
+    # 정보 입력 폼
+    with st.form("new_data_form", clear_on_submit=True):
+        input_question = st.text_input("질문 (예: TUC 수술 세팅 방법)", key="input_question_field")
+        input_answer = st.text_area("답변 내용 (자세한 절차, 기구 목록 등)", key="input_answer_field")
+
+        # 파일 업로드 (이미지)
+        uploaded_file = st.file_uploader("관련 이미지 업로드 (선택 사항)", type=["png", "jpg", "jpeg"], key="image_uploader_field")
+        
+        # 텍스트 입력 필드
+        input_doctor = st.text_input("집도의", key="input_doctor_field")
+        input_room = st.text_input("수술방 번호", key="input_room_field")
+        input_surgery = st.text_input("수술명", key="input_surgery_field")
+
+        # --- 이 부분이 수정됩니다: '도구/장비 구분' 대신 '수술 장비', '수술 도구' 입력 필드 ---
+        input_surgery_device = st.text_input("수술 장비 (콤마로 구분)", help="예: C-arm, 전기소작기, 모니터", key="input_surgery_device_field")
+        input_surgery_tool = st.text_input("수술 도구 (콤마로 구분)", help="예: Foley Catheter, Resectoscope Set", key="input_surgery_tool_field")
+        # --- 수정 끝 ---
+
+        submitted = st.form_submit_button("정보 저장")
+
+        if submitted:
+            # 1. 파일명 생성 및 로컬 저장 (프로토타입용)
+            image_filename = None
+            if uploaded_file is not None:
+                file_extension = uploaded_file.name.split('.')[-1]
+                image_filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uploaded_file.name.replace(' ', '_')}"
+                
+                if not os.path.exists("images"):
+                    os.makedirs("images")
+                
+                with open(os.path.join("images", image_filename), "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                st.success(f"이미지 '{image_filename}'가 로컬 'images' 폴더에 저장되었습니다. 💾")
+            
+            # 2. Google Sheets에 데이터 추가
+            try:
+                json_key_info = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT_KEY"])
+                credentials = service_account.Credentials.from_service_account_info(
+                    json_key_info,
+                    scopes=['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+                )
+                gc = gspread.authorize(credentials)
+                sheet_url = "https://docs.google.com/spreadsheets/d/11DUuktRmn1UlchUbeytQAsxC9RaHmL-PW-6480vXYSo/edit?gid=0#gid=0"
+                sheet_id = sheet_url.split('/d/')[1].split('/')[0]
+                sh = gc.open_by_key(sheet_id)
+                input_worksheet = sh.worksheet('Data_Input') # 'Data_Input' 탭 선택
+
+                current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                # --- 이 부분이 수정됩니다: new_row 순서 및 컬럼 매칭 ---
+                new_row = [
+                    input_question,
+                    input_answer,
+                    image_filename if image_filename else "",
+                    current_time,
+                    input_doctor,
+                    input_room,
+                    input_surgery,
+                    input_surgery_device, # H열: 수술 장비
+                    input_surgery_tool   # I열: 수술 도구
+                ]
+                # --- 수정 끝 ---
+
+                input_worksheet.append_row(new_row)
+                st.success("새로운 정보가 성공적으로 저장되었습니다! ✅")
+                
+                load_google_sheet_data.clear()
+                
+            except Exception as e:
+                st.error(f"정보 저장 중 오류 발생: {e}")
+                st.warning("Google Sheet 권한, 탭 이름, 컬럼 이름이 정확한지 확인해주세요.")
 
     st.markdown("---")
 
